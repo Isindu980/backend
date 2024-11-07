@@ -256,7 +256,7 @@ async function logUserActivity(userId, activityType, activityDetails) {
       userId,
       activityType,
       activityDetails,
-      timestamp: new Date(),
+      timestamp: new Date().toLocaleString(),
     };
   
     try {
