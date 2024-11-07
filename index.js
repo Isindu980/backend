@@ -248,6 +248,9 @@ app.post('/api/update-username', async (req, res) => {
   });
 
 
+  
+
+
 async function logUserActivity(userId, activityType, activityDetails) {
     const activity = {
       userId,
