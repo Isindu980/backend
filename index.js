@@ -131,9 +131,9 @@ app.post('/api/login', async (req, res) => {
   
      
       if (user.role === 'admin' || email === 'isindu980@gmail.com') {
-        await logUserActivity(user._id, 'Admin Login', 'Admin logged in successfully');
+        await logUserActivity(user._id, user.username, 'Admin Login');
       } else {
-        await logUserActivity(user._id, 'User Login', 'User logged in successfully');
+        await logUserActivity(user._id, user.username, 'User Login');
       }
   
      
@@ -280,7 +280,6 @@ app.post('/api/verify-otp', async (req, res) => {
   });
   
   
-
   app.get('/api/logs', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];  
   
@@ -399,7 +398,7 @@ app.get('/api/user-dashboard', async (req, res) => {
     }
 
     res.json({ success: true, message: 'Welcome to your dashboard!', user });
-    await logUserActivity(user._id, 'Dashboard Access', 'User accessed their dashboard.');
+    await logUserActivity(user._id, user.username, 'Dashboard Access');
 
 
   } catch (error) {
@@ -428,7 +427,7 @@ app.post('/api/update-username', async (req, res) => {
         { $set: { username } }
       );
 
-      await logUserActivity(user._id, 'Update Username', `User changed their username to ${username}.`);
+      await logUserActivity(user._id, username, 'Update Username');
 
   
       res.json({ success: true, message: 'Username updated successfully.' });
@@ -438,36 +437,22 @@ app.post('/api/update-username', async (req, res) => {
   });
 
 
-  
+async function logUserActivity(userId, username, activityType) {
+  const activity = {
+    userId,
+    username,
+    activityType,
+    timestamp: new Date().toLocaleString(),
+  };
 
-
-
-
-
-  
-
-
-async function logUserActivity(userId, activityType, activityDetails) {
-    const activity = {
-      userId,
-      activityType,
-      activityDetails,
-      timestamp: new Date().toLocaleString(),
-    };
-  
-    try {
-      await client.db(dbName).collection('Activity').insertOne(activity);
-    } catch (error) {
-      console.error('Error logging user activity:', error);
-    }
+  try {
+    await client.db(dbName).collection('Activity').insertOne(activity);
+  } catch (error) {
+    console.error('Error logging user activity:', error);
   }
+}
 
-
-
-
-
-
-
+  
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
