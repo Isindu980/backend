@@ -137,11 +137,11 @@ app.post('/api/login', async (req, res) => {
       }
   
      
-      const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '1h' });
+      const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '5m' });
   
 
       const otp = crypto.randomInt(100000, 999999).toString();
-      const otpExpiry = Date.now() + OTP_EXPIRY;
+      const otpExpiry = Date.now().toLocaleString() + OTP_EXPIRY;
   
       await client.db(dbName).collection(usersCollectionName).updateOne(
         { email },
