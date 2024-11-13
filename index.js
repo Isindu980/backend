@@ -9,6 +9,8 @@ const logsCollectionName = 'Activity';
 const app = express();
 const port = 5000;
 const { ObjectId } = require('mongodb');
+const router = express.Router();
+
 
 
 app.use(cors());
@@ -135,7 +137,6 @@ app.post('/api/login', async (req, res) => {
       } else {
         await logUserActivity(user._id, user.username, 'User Login');
       }
-  
      
       const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '5m' });
   
@@ -209,7 +210,6 @@ app.post('/api/verify-otp', async (req, res) => {
         return res.status(400).json({ success: false, message: 'User not found.' });
       }
   
-    
       if (!user.otp || Date.now() > user.otpExpiry || user.otp !== otp) {
         return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
       }
@@ -218,18 +218,12 @@ app.post('/api/verify-otp', async (req, res) => {
         { email },
         { $unset: { otp: "", otpExpiry: "" } }
       );
-  
-     
       let role = user.role;
       let navigateTo = 'dashboard';
-  
-    
       if (email === 'isindu980@gmail.com') {
         
         navigateTo = 'admin-dashboard';
       }
-  
-
       const token = jwt.sign({ email, role }, JWT_SECRET, { expiresIn: '1h' });
   
       res.status(200).json({
@@ -244,9 +238,12 @@ app.post('/api/verify-otp', async (req, res) => {
       res.status(500).json({ success: false, message: 'Server error during OTP verification.' });
     }
   });
-  
-  
  
+
+  
+  
+
+
   app.get('/api/admin-dashboard', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1]; 
   
@@ -279,7 +276,6 @@ app.post('/api/verify-otp', async (req, res) => {
     }
   });
   
-  
   app.get('/api/logs', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];  
   
@@ -296,8 +292,6 @@ app.post('/api/verify-otp', async (req, res) => {
       res.status(500).json({ success: false, message: 'Error fetching logs' });
     }
   });
-  
-
 
 app.get('/api/users', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
@@ -315,7 +309,6 @@ app.get('/api/users', async (req, res) => {
     }
   });
   
- 
   app.delete('/api/users/:id', async (req, res) => {
     const userId = req.params.id;
     const token = req.headers.authorization?.split(' ')[1];
@@ -361,7 +354,7 @@ app.get('/api/users', async (req, res) => {
     } catch (err) {
     
       console.error('Error deleting user:', err);
-  
+      await logUserActivity(user._id, username, 'Update Username');
    
       if (err.name === 'JsonWebTokenError') {
         return res.status(401).json({ success: false, message: 'Invalid token.' });
@@ -376,10 +369,10 @@ app.get('/api/users', async (req, res) => {
   
  
   
-  app.get('/api/logs', async (req, res) => {
-    const logs = await client.db(dbName).collection('Activity').find().toArray();
-    res.json({ success: true, logs });
-  });
+//   app.get('/api/logs', async (req, res) => {
+//     const logs = await client.db(dbName).collection('Activity').find().toArray();
+//     res.json({ success: true, logs });
+//   });
   
 
 app.get('/api/user-dashboard', async (req, res) => {
@@ -398,7 +391,7 @@ app.get('/api/user-dashboard', async (req, res) => {
     }
 
     res.json({ success: true, message: 'Welcome to your dashboard!', user });
-    await logUserActivity(user._id, user.username, 'Dashboard Access');
+    await logUserActivity(user.id, user.username, '`User with ID ${userId} deleted successfully');
 
 
   } catch (error) {
@@ -427,7 +420,7 @@ app.post('/api/update-username', async (req, res) => {
         { $set: { username } }
       );
 
-      await logUserActivity(user._id, username, 'Update Username');
+      await logUserActivity(user.id, username, 'Update Username');
 
   
       res.json({ success: true, message: 'Username updated successfully.' });
@@ -437,21 +430,7 @@ app.post('/api/update-username', async (req, res) => {
   });
 
 
-async function logUserActivity(userId, username, activityType) {
-  const activity = {
-    userId,
-    username,
-    activityType,
-    timestamp: new Date().toLocaleString(),
-  };
-
-  try {
-    await client.db(dbName).collection('Activity').insertOne(activity);
-  } catch (error) {
-    console.error('Error logging user activity:', error);
-  }
-}
-
+  
   
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
