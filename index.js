@@ -430,7 +430,21 @@ app.post('/api/update-username', async (req, res) => {
   });
 
 
-  
+async function logUserActivity(userId, username, activityType) {
+  const activity = {
+    userId,
+    username,
+    activityType,
+    timestamp: new Date().toLocaleString(),
+  };
+
+  try {
+    await client.db(dbName).collection('Activity').insertOne(activity);
+  } catch (error) {
+    console.error('Error logging user activity:', error);
+  }
+}
+
   
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
