@@ -13,7 +13,11 @@ const router = express.Router();
 
 
 
-app.use(cors());
+app.use(cors({
+  origin: 'https://www.isindueshan.me', // Allow your frontend's origin
+  methods: ['GET', 'POST', 'PUT', 'DELETE'], // Specify the methods you want to allow
+  allowedHeaders: ['Content-Type', 'Authorization'] // Allowed headers for the request
+}));
 app.use(express.json());
 
 const uri = "mongodb+srv://isindu:isindu980@cluster0.yjtla.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
