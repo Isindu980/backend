@@ -23,8 +23,25 @@ app.use(cors({
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  credentials: true
+  credentials: true,
 }));
+
+app.options('*', cors()); // Enable CORS preflight for all routes
+
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+
+
+
 app.use(express.json());
 
 const uri = "mongodb+srv://isindu:isindu980@cluster0.yjtla.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
