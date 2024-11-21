@@ -14,34 +14,10 @@ const router = express.Router();
 
 
 app.use(cors({
-  origin: (origin, callback) => {
-    const allowedOrigins = ['https://isindueshan.me', 'http://localhost:3000'];
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  credentials: true,
+  origin: 'https://isindueshan.me', // Allow your frontend's origin
+  methods: ['GET', 'POST', 'PUT', 'DELETE'], // Specify the methods you want to allow
+  allowedHeaders: ['Content-Type', 'Authorization'] // Allowed headers for the request
 }));
-
-app.options('*', cors()); // Enable CORS preflight for all routes
-
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
-});
-
-
-
-
 app.use(express.json());
 
 const uri = "mongodb+srv://isindu:isindu980@cluster0.yjtla.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
