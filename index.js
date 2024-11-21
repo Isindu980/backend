@@ -16,7 +16,8 @@ const router = express.Router();
 app.use(cors({
   origin: 'https://isindueshan.me', // Allow your frontend's origin
   methods: ['GET', 'POST', 'PUT', 'DELETE'], // Specify the methods you want to allow
-  allowedHeaders: ['Content-Type', 'Authorization'] // Allowed headers for the request
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with'], // Allowed headers for the request
+  credentials: true
 }));
 app.use(express.json());
 
