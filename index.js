@@ -14,9 +14,15 @@ const router = express.Router();
 
 
 app.use(cors({
-  origin: 'https://isindueshan.me', // Allow your frontend's origin
-  methods: ['GET', 'POST', 'PUT', 'DELETE'], // Specify the methods you want to allow
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with'], // Allowed headers for the request
+  origin: (origin, callback) => {
+    const allowedOrigins = ['https://isindueshan.me', 'http://localhost:3000'];
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true
 }));
 app.use(express.json());
