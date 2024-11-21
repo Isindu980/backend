@@ -9,5 +9,19 @@
     "mongodb": "^6.10.0",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.9.16"
-  }
+  },
+  "version": "2",
+  "builds": [
+    {
+      "src": "index.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "index.js"
+    }
+  ]
 }
+  
