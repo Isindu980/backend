@@ -72,7 +72,7 @@ app.post('/api/signup', async (req, res) => {
       const token = jwt.sign({ username, email, password: hashedPassword }, JWT_SECRET, { expiresIn: '1h' });
       console.log("Generated Token:", token);
   
-      const confirmLink = `http://localhost:5000/api/confirm/${token}`;
+      const confirmLink = `https://securewrap-1621182990b0.herokuapp.com/api/confirm/${token}`;
   
       const mailOptions = {
         from: 'volunt23@gmail.com',
