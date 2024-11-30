@@ -7,7 +7,7 @@ const cors = require('cors');
 const crypto = require('crypto'); 
 const logsCollectionName = 'Activity';
 const app = express();
-const port = 5000;
+
 const { ObjectId } = require('mongodb');
 const router = express.Router();
 
@@ -450,6 +450,7 @@ async function logUserActivity(userId, username, activityType) {
 }
 
   
+const port = process.env.PORT || 5000;
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
