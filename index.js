@@ -7,6 +7,7 @@ const cors = require('cors');
 const crypto = require('crypto'); 
 const logsCollectionName = 'Activity';
 const app = express();
+const moment = require('moment-timezone');
 
 const { ObjectId } = require('mongodb');
 const router = express.Router();
@@ -57,7 +58,7 @@ async function logUserActivity(userId, username, activityType) {
     userId,
     username,
     activityType,
-    timestamp: new Date().toLocaleString(),
+    timestamp: moment().tz('Asia/Colombo').format('YYYY-MM-DD HH:mm:ss'),
   };
 
   try {
