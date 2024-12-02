@@ -11,8 +11,6 @@ const app = express();
 const { ObjectId } = require('mongodb');
 const router = express.Router();
 
-
-
 app.use(cors({
   origin: 'https://www.isindueshan.me', // Allow your frontend's origin
   methods: ['GET', 'POST', 'PUT', 'DELETE'], // Specify the methods you want to allow
@@ -54,41 +52,56 @@ const JWT_SECRET = '45bc7637be2af856482261953f87d670d663af2bc9b3872e79b0dedd7b30
 
 const OTP_EXPIRY = 5 * 60 * 1000; 
 
+async function logUserActivity(userId, username, activityType) {
+  const activity = {
+    userId,
+    username,
+    activityType,
+    timestamp: new Date().toLocaleString(),
+  };
+
+  try {
+    await client.db(dbName).collection('Activity').insertOne(activity);
+  } catch (error) {
+    console.error('Error logging user activity:', error);
+  }
+}
 
 app.post('/api/signup', async (req, res) => {
-    const { username, email, password } = req.body;
-  
-    if (!username || !email || !password) {
-      return res.status(400).json({ success: false, message: 'All fields are required.' });
+  const { username, email, password } = req.body;
+
+  if (!username || !email || !password) {
+    return res.status(400).json({ success: false, message: 'All fields are required.' });
+  }
+
+  try {
+    const existingUser = await client.db(dbName).collection(usersCollectionName).findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: 'Email is already registered.' });
     }
-  
-    try {
-      const existingUser = await client.db(dbName).collection(usersCollectionName).findOne({ email });
-      if (existingUser) {
-        return res.status(400).json({ success: false, message: 'Email is already registered.' });
-      }
-  
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const token = jwt.sign({ username, email, password: hashedPassword }, JWT_SECRET, { expiresIn: '1h' });
-      console.log("Generated Token:", token);
-  
-      const confirmLink = `https://securewrap-1621182990b0.herokuapp.com/api/confirm/${token}`;
-  
-      const mailOptions = {
-        from: 'volunt23@gmail.com',
-        to: email,
-        subject: 'Email Confirmation',
-        html: `<h1>Welcome ${username}</h1><p>Click <a href="${confirmLink}">here</a> to confirm your email and complete your registration.</p>`
-      };
-  
-      await transporter.sendMail(mailOptions);
-      res.json({ success: true, message: 'Confirmation email sent. Please verify your email to complete registration.' });
-  
-    } catch (error) {
-      console.error("Error in signup process:", error);
-      res.status(500).json({ success: false, message: 'Server error during signup process.' });
-    }
-  });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const token = jwt.sign({ username, email, password: hashedPassword }, JWT_SECRET, { expiresIn: '1h' });
+    console.log("Generated Token:", token);
+
+    const confirmLink = `https://securewrap-1621182990b0.herokuapp.com/api/confirm/${token}`;
+
+    const mailOptions = {
+      from: 'volunt23@gmail.com',
+      to: email,
+      subject: 'Email Confirmation',
+      html: `<h1>Welcome ${username}</h1><p>Click <a href="${confirmLink}">here</a> to confirm your email and complete your registration.</p>`
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.json({ success: true, message: 'Confirmation email sent. Please verify your email to complete registration.' });
+
+    await logUserActivity(null, username, 'Signup');
+  } catch (error) {
+    console.error("Error in signup process:", error);
+    res.status(500).json({ success: false, message: 'Server error during signup process.' });
+  }
+});
 
 app.get('/api/confirm/:token', async (req, res) => {
   const { token } = req.params;
@@ -111,273 +124,214 @@ app.get('/api/confirm/:token', async (req, res) => {
     await client.db(dbName).collection(usersCollectionName).insertOne(user);
 
     res.status(200).json({ message: 'Account confirmed and created!' });
+
+    await logUserActivity(user._id, user.username, 'Email Confirmed');
   } catch (error) {
     res.status(400).json({ error: 'Invalid or expired token' });
   }
 });
 
-
 app.post('/api/login', async (req, res) => {
-    const { email, password } = req.body;
-  
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Email and password are required.' });
-    }
-  
-    try {
-      const user = await client.db(dbName).collection(usersCollectionName).findOne({ email });
-      if (!user || !user.confirmed) {
-        return res.status(400).json({ success: false, message: 'User not confirmed or does not exist.' });
-      }
-  
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
-        return res.status(400).json({ success: false, message: 'Incorrect password.' });
-      }
-  
-     
-      if (user.role === 'admin' || email === 'isindu980@gmail.com') {
-        await logUserActivity(user._id, user.username, 'Admin Login');
-      } else {
-        await logUserActivity(user._id, user.username, 'User Login');
-      }
-     
-      const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '5m' });
-  
+  const { email, password } = req.body;
 
-      const otp = crypto.randomInt(100000, 999999).toString();
-      const otpExpiry = Date.now().toLocaleString() + OTP_EXPIRY;
-  
-      await client.db(dbName).collection(usersCollectionName).updateOne(
-        { email },
-        { $set: { otp, otpExpiry } }
-      );
-  
-      const mailOptions = {
-        from: 'volunt23@gmail.com',
-        to: email,
-        subject: 'Your One-Time Password (OTP)',
-        html: `<h1>Your OTP is ${otp}</h1><p>This OTP is valid for 5 minutes.</p>`
-      };
-  
-      await transporter.sendMail(mailOptions);
-  
-      
-      if (email === 'isindu980@gmail.com') {
-        return res.json({
-          success: true,
-          message: 'OTP sent to your email. Please verify.',
-          isAdmin: true,
-          token,
-          userData: user,
-          navigateTo: 'admin-dashboard', 
-        });
-      }
-  
-  
-      if (user.role === 'admin') {
-        return res.json({
-          success: true,
-          message: 'OTP sent to your email. Please verify.',
-          isAdmin: true,
-          token, 
-          userData: user,
-          navigateTo: 'admin-dashboard', 
-        });
-      }
-  
-      
-      return res.json({
-        success: true,
-        message: 'OTP sent to your email. Please verify.',
-        token,
-        navigateTo: 'user-dashboard',
-      });
-  
-    } catch (error) {
-      console.error("Error during login process:", error);
-      res.status(500).json({ success: false, message: 'Server error during login process.' });
-    }
-  });
+  if (!email || !password) {
+    return res.status(400).json({ success: false, message: 'Email and password are required.' });
+  }
 
+  try {
+    const user = await client.db(dbName).collection(usersCollectionName).findOne({ email });
+    if (!user || !user.confirmed) {
+      return res.status(400).json({ success: false, message: 'User not confirmed or does not exist.' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: 'Incorrect password.' });
+    }
+
+    const activityType = (user.role === 'admin' || email === 'isindu980@gmail.com') ? 'Admin Login' : 'User Login';
+    await logUserActivity(user._id, user.username, activityType);
+
+    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '5m' });
+
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const otpExpiry = Date.now() + OTP_EXPIRY;
+
+    await client.db(dbName).collection(usersCollectionName).updateOne(
+      { email },
+      { $set: { otp, otpExpiry } }
+    );
+
+    const mailOptions = {
+      from: 'volunt23@gmail.com',
+      to: email,
+      subject: 'Your One-Time Password (OTP)',
+      html: `<h1>Your OTP is ${otp}</h1><p>This OTP is valid for 5 minutes.</p>`
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    const navigateTo = (email === 'isindu980@gmail.com' || user.role === 'admin') ? 'admin-dashboard' : 'user-dashboard';
+
+    res.json({
+      success: true,
+      message: 'OTP sent to your email. Please verify.',
+      isAdmin: (email === 'isindu980@gmail.com' || user.role === 'admin'),
+      token,
+      userData: user,
+      navigateTo
+    });
+  } catch (error) {
+    console.error("Error during login process:", error);
+    res.status(500).json({ success: false, message: 'Server error during login process.' });
+  }
+});
 
 app.post('/api/verify-otp', async (req, res) => {
-    const { email, otp } = req.body;
-  
-    if (!email || !otp) {
-      return res.status(400).json({ success: false, message: 'Email and OTP are required.' });
-    }
-  
-    try {
-      const user = await client.db(dbName).collection(usersCollectionName).findOne({ email });
-      if (!user) {
-        return res.status(400).json({ success: false, message: 'User not found.' });
-      }
-  
-      if (!user.otp || Date.now() > user.otpExpiry || user.otp !== otp) {
-        return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
-      }
-  
-      await client.db(dbName).collection(usersCollectionName).updateOne(
-        { email },
-        { $unset: { otp: "", otpExpiry: "" } }
-      );
-      let role = user.role;
-      let navigateTo = 'dashboard';
-      if (email === 'isindu980@gmail.com') {
-        
-        navigateTo = 'admin-dashboard';
-      }
-      const token = jwt.sign({ email, role }, JWT_SECRET, { expiresIn: '1h' });
-  
-      res.status(200).json({
-        success: true,
-        message: 'OTP verified successfully.',
-        token,
-        role,
-        navigateTo,
-      });
-    } catch (error) {
-      console.error("Error during OTP verification:", error);
-      res.status(500).json({ success: false, message: 'Server error during OTP verification.' });
-    }
-  });
- 
+  const { email, otp } = req.body;
 
-  
-  
+  if (!email || !otp) {
+    return res.status(400).json({ success: false, message: 'Email and OTP are required.' });
+  }
 
+  try {
+    const user = await client.db(dbName).collection(usersCollectionName).findOne({ email });
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'User not found.' });
+    }
 
-  app.get('/api/admin-dashboard', async (req, res) => {
-    const token = req.headers.authorization?.split(' ')[1]; 
-  
-    if (!token) {
-      return res.status(401).json({ success: false, message: 'No token provided.' });
+    if (!user.otp || Date.now() > user.otpExpiry || user.otp !== otp) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
     }
-  
-    try {
-    
-      const decoded = jwt.verify(token, JWT_SECRET);
-  
 
-      const adminEmail = 'isindu980@gmail.com';
-      if (decoded.email !== adminEmail) {
-        return res.status(403).json({ success: false, message: 'Access denied. Only admin can access this dashboard.' });
-      }
-  
- 
-      const adminUser = await client.db(dbName).collection(usersCollectionName).findOne({ email: decoded.email });
-  
-      if (!adminUser) {
-        return res.status(404).json({ success: false, message: 'Admin user not found.' });
-      }
-  
-  
-      res.json({ success: true, message: 'Welcome to the Admin Dashboard!', admin: adminUser });
-    } catch (error) {
-      console.error('Error accessing admin dashboard:', error);
-      res.status(401).json({ success: false, message: 'Invalid or expired token.' });
+    await client.db(dbName).collection(usersCollectionName).updateOne(
+      { email },
+      { $unset: { otp: "", otpExpiry: "" } }
+    );
+
+    const role = user.role;
+    const navigateTo = (email === 'isindu980@gmail.com') ? 'admin-dashboard' : 'user-dashboard';
+    const token = jwt.sign({ email, role }, JWT_SECRET, { expiresIn: '1h' });
+
+    res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully.',
+      token,
+      role,
+      navigateTo,
+    });
+
+    await logUserActivity(user._id, user.username, 'OTP Verified');
+  } catch (error) {
+    console.error("Error during OTP verification:", error);
+    res.status(500).json({ success: false, message: 'Server error during OTP verification.' });
+  }
+});
+
+app.get('/api/admin-dashboard', async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1]; 
+
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'No token provided.' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    const adminEmail = 'isindu980@gmail.com';
+    if (decoded.email !== adminEmail) {
+      return res.status(403).json({ success: false, message: 'Access denied. Only admin can access this dashboard.' });
     }
-  });
-  
-  app.get('/api/logs', async (req, res) => {
-    const token = req.headers.authorization?.split(' ')[1];  
-  
-    try {
-     
-      const decoded = jwt.verify(token, JWT_SECRET);
-  
-     
-      const logs = await client.db(dbName).collection('Activity').find().toArray();
-  
-      res.json({ success: true, logs });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ success: false, message: 'Error fetching logs' });
+
+    const adminUser = await client.db(dbName).collection(usersCollectionName).findOne({ email: decoded.email });
+
+    if (!adminUser) {
+      return res.status(404).json({ success: false, message: 'Admin user not found.' });
     }
-  });
+
+    res.json({ success: true, message: 'Welcome to the Admin Dashboard!', admin: adminUser });
+
+    await logUserActivity(adminUser._id, adminUser.username, 'Access Admin Dashboard');
+  } catch (error) {
+    console.error('Error accessing admin dashboard:', error);
+    res.status(401).json({ success: false, message: 'Invalid or expired token.' });
+  }
+});
+
+app.get('/api/logs', async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];  
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    const logs = await client.db(dbName).collection('Activity').find().toArray();
+
+    res.json({ success: true, logs });
+
+    await logUserActivity(decoded.userId, decoded.username, 'View Logs');
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Error fetching logs' });
+  }
+});
 
 app.get('/api/users', async (req, res) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET);
-  
-      if (decoded.email !== 'isindu980@gmail.com') {
-        return res.status(403).json({ success: false, message: 'Access denied.' });
-      }
-  
-      const users = await client.db(dbName).collection(usersCollectionName).find().toArray();
-      res.json({ success: true, users });
-    } catch (err) {
-      res.status(401).json({ success: false, message: 'Invalid token.' });
-    }
-  });
-  
-  app.delete('/api/users/:id', async (req, res) => {
-    const userId = req.params.id;
-    const token = req.headers.authorization?.split(' ')[1];
-  
-   
-    if (!ObjectId.isValid(userId)) {
-      return res.status(400).json({ success: false, message: 'Invalid user ID format.' });
-    }
-  
-    try {
-      
-      const decoded = jwt.verify(token, JWT_SECRET);
-  
-   
-      const user = await client.db(dbName).collection(usersCollectionName).findOne({ _id: new ObjectId(userId) });
-  
-     
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'User not found.' });
-      }
-  
-    
-      if (user.email === 'isindu980@gmail.com') {
-        return res.status(403).json({ success: false, message: 'Cannot delete the main admin account.' });
-      }
-  
-    
-      if (user.role === 'admin') {
-        return res.status(403).json({ success: false, message: 'Cannot delete an admin account.' });
-      }
-  
+  const token = req.headers.authorization?.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
 
-      const result = await client.db(dbName).collection(usersCollectionName).deleteOne({ _id: new ObjectId(userId) });
-  
-   
-      if (result.deletedCount === 0) {
-        return res.status(404).json({ success: false, message: 'No user deleted, user may not exist.' });
-      }
-  
-      console.log(`User with ID ${userId} deleted successfully by ${decoded.email}`);
-      res.json({ success: true, message: 'User deleted successfully.' });
-  
-    } catch (err) {
-    
-      console.error('Error deleting user:', err);
-      await logUserActivity(user._id, username, 'Update Username');
-   
-      if (err.name === 'JsonWebTokenError') {
-        return res.status(401).json({ success: false, message: 'Invalid token.' });
-      } else if (err.name === 'TokenExpiredError') {
-        return res.status(401).json({ success: false, message: 'Token expired.' });
-      }
-  
-   
-      res.status(500).json({ success: false, message: 'Error deleting user.', error: err.message });
+    if (decoded.email !== 'isindu980@gmail.com') {
+      return res.status(403).json({ success: false, message: 'Access denied.' });
     }
-  });
-  
- 
-  
-//   app.get('/api/logs', async (req, res) => {
-//     const logs = await client.db(dbName).collection('Activity').find().toArray();
-//     res.json({ success: true, logs });
-//   });
-  
+
+    const users = await client.db(dbName).collection(usersCollectionName).find().toArray();
+    res.json({ success: true, users });
+
+    await logUserActivity(decoded.userId, decoded.username, 'View Users');
+  } catch (err) {
+    res.status(401).json({ success: false, message: 'Invalid token.' });
+  }
+});
+
+app.delete('/api/users/:id', async (req, res) => {
+  const userId = req.params.id;
+  const token = req.headers.authorization?.split(' ')[1];
+
+  if (!ObjectId.isValid(userId)) {
+    return res.status(400).json({ success: false, message: 'Invalid user ID format.' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    const user = await client.db(dbName).collection(usersCollectionName).findOne({ _id: new ObjectId(userId) });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    if (user.email === 'isindu980@gmail.com') {
+      return res.status(403).json({ success: false, message: 'Cannot delete the main admin account.' });
+    }
+
+    if (user.role === 'admin') {
+      return res.status(403).json({ success: false, message: 'Cannot delete an admin account.' });
+    }
+
+    const result = await client.db(dbName).collection(usersCollectionName).deleteOne({ _id: new ObjectId(userId) });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ success: false, message: 'No user deleted, user may not exist.' });
+    }
+
+    res.json({ success: true, message: 'User deleted successfully.' });
+
+    await logUserActivity(decoded.userId, decoded.username, `Deleted User ${userId}`);
+  } catch (err) {
+    console.error('Error deleting user:', err);
+    res.status(500).json({ success: false, message: 'Error deleting user.', error: err.message });
+  }
+});
 
 app.get('/api/user-dashboard', async (req, res) => {
   const token = req.headers.authorization?.split(' ')[1]; 
@@ -395,63 +349,43 @@ app.get('/api/user-dashboard', async (req, res) => {
     }
 
     res.json({ success: true, message: 'Welcome to your dashboard!', user });
-    await logUserActivity(user.id, user.username, '`User with ID ${userId} deleted successfully');
 
-
+    await logUserActivity(user._id, user.username, 'Access User Dashboard');
   } catch (error) {
     res.status(401).json({ success: false, message: 'Invalid token.' });
   }
 });
 
 app.post('/api/update-username', async (req, res) => {
-    const { username } = req.body;
-    const token = req.headers.authorization?.split(' ')[1];
-  
-    if (!token || !username) {
-      return res.status(400).json({ success: false, message: 'Token and new username are required.' });
-    }
-  
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET);
-      const user = await client.db(dbName).collection(usersCollectionName).findOne({ email: decoded.email });
-  
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'User not found.' });
-      }
-  
-      await client.db(dbName).collection(usersCollectionName).updateOne(
-        { email: decoded.email },
-        { $set: { username } }
-      );
+  const { username } = req.body;
+  const token = req.headers.authorization?.split(' ')[1];
 
-      await logUserActivity(user.id, username, 'Update Username');
-
-  
-      res.json({ success: true, message: 'Username updated successfully.' });
-    } catch (error) {
-      res.status(500).json({ success: false, message: 'Error updating username.' });
-    }
-  });
-
-
-async function logUserActivity(userId, username, activityType) {
-  const activity = {
-    userId,
-    username,
-    activityType,
-    timestamp: new Date().toLocaleString(),
-  };
+  if (!token || !username) {
+    return res.status(400).json({ success: false, message: 'Token and new username are required.' });
+  }
 
   try {
-    await client.db(dbName).collection('Activity').insertOne(activity);
-  } catch (error) {
-    console.error('Error logging user activity:', error);
-  }
-}
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = await client.db(dbName).collection(usersCollectionName).findOne({ email: decoded.email });
 
-  
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    await client.db(dbName).collection(usersCollectionName).updateOne(
+      { email: decoded.email },
+      { $set: { username } }
+    );
+
+    res.json({ success: true, message: 'Username updated successfully.' });
+
+    await logUserActivity(user._id, username, 'Update Username');
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error updating username.' });
+  }
+});
+
 const port = process.env.PORT || 5000;
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
-
