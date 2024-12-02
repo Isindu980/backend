@@ -82,7 +82,7 @@ app.use(session({
     dbName: dbName,
     collectionName: 'sessions'
   }),
-  cookie: { maxAge: 1000 * 60 * 60 * 24 } // 1 day
+  cookie: { maxAge: 5 * 60 * 1000 }
 }));
 
 app.post('/api/signup', async (req, res) => {
