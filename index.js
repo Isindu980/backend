@@ -5,9 +5,10 @@ const jwt = require('jsonwebtoken');
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const cors = require('cors');
 const crypto = require('crypto'); 
+const moment = require('moment-timezone');
+
 const logsCollectionName = 'Activity';
 const app = express();
-const moment = require('moment-timezone');
 
 const { ObjectId } = require('mongodb');
 const router = express.Router();
@@ -58,7 +59,7 @@ async function logUserActivity(userId, username, activityType) {
     userId,
     username,
     activityType,
-    timestamp: moment().tz('Asia/Colombo').format('YYYY-MM-DD HH:mm:ss'),
+    timestamp: moment().tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss'), // GMT+5:30
   };
 
   try {
@@ -269,7 +270,7 @@ app.get('/api/logs', async (req, res) => {
 
     res.json({ success: true, logs });
 
-    await logUserActivity(adminUser._id, adminUser.username, 'View Logs');
+    await logUserActivity(decoded.userId, decoded.username, 'View Logs');
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Error fetching logs' });
@@ -288,7 +289,7 @@ app.get('/api/users', async (req, res) => {
     const users = await client.db(dbName).collection(usersCollectionName).find().toArray();
     res.json({ success: true, users });
 
-    await logUserActivity(adminUser._id, adminUser.username, 'View Users');
+    await logUserActivity(decoded.userId, decoded.username, 'View Users');
   } catch (err) {
     res.status(401).json({ success: false, message: 'Invalid token.' });
   }
@@ -327,7 +328,7 @@ app.delete('/api/users/:id', async (req, res) => {
 
     res.json({ success: true, message: 'User deleted successfully.' });
 
-    await logUserActivity(adminUser._id, adminUser.username, `Admin Deleted User ${userId}`);
+    await logUserActivity(decoded.userId, decoded.username, `Deleted User ${userId}`);
   } catch (err) {
     console.error('Error deleting user:', err);
     res.status(500).json({ success: false, message: 'Error deleting user.', error: err.message });
