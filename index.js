@@ -7,6 +7,8 @@ const { MongoClient, ServerApiVersion } = require('mongodb');
 const cors = require('cors');
 const crypto = require('crypto'); 
 const moment = require('moment-timezone');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
 
 const logsCollectionName = 'Activity';
 const app = express();
@@ -52,6 +54,7 @@ const transporter = nodemailer.createTransport({
 });
 
 const JWT_SECRET = process.env.JWT_SECRET;
+
 const OTP_EXPIRY = 5 * 60 * 1000; 
 
 async function logUserActivity(userId, username, activityType) {
@@ -68,6 +71,19 @@ async function logUserActivity(userId, username, activityType) {
     console.error('Error logging user activity:', error);
   }
 }
+
+// Session management setup
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: uri,
+    dbName: dbName,
+    collectionName: 'sessions'
+  }),
+  cookie: { maxAge: 1000 * 60 * 60 * 24 } // 1 day
+}));
 
 app.post('/api/signup', async (req, res) => {
   const { username, email, password } = req.body;
@@ -89,7 +105,7 @@ app.post('/api/signup', async (req, res) => {
     const confirmLink = `https://securewrap-1621182990b0.herokuapp.com/api/confirm/${token}`;
 
     const mailOptions = {
-      from: 'volunt23@gmail.com',
+      from: process.env.EMAIL_USER,
       to: email,
       subject: 'Email Confirmation',
       html: `<h1>Welcome ${username}</h1><p>Click <a href="${confirmLink}">here</a> to confirm your email and complete your registration.</p>`
@@ -165,7 +181,7 @@ app.post('/api/login', async (req, res) => {
     );
 
     const mailOptions = {
-      from: 'volunt23@gmail.com',
+      from: process.env.EMAIL_USER,
       to: email,
       subject: 'Your One-Time Password (OTP)',
       html: `<h1>Your OTP is ${otp}</h1><p>This OTP is valid for 5 minutes.</p>`
