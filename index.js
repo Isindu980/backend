@@ -269,7 +269,7 @@ app.get('/api/logs', async (req, res) => {
 
     res.json({ success: true, logs });
 
-    await logUserActivity(decoded.userId, decoded.username, 'View Logs');
+    await logUserActivity(adminUser._id, adminUser.username, 'View Logs');
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Error fetching logs' });
@@ -288,7 +288,7 @@ app.get('/api/users', async (req, res) => {
     const users = await client.db(dbName).collection(usersCollectionName).find().toArray();
     res.json({ success: true, users });
 
-    await logUserActivity(decoded.userId, decoded.username, 'View Users');
+    await logUserActivity(adminUser._id, adminUser.username, 'View Users');
   } catch (err) {
     res.status(401).json({ success: false, message: 'Invalid token.' });
   }
@@ -327,7 +327,7 @@ app.delete('/api/users/:id', async (req, res) => {
 
     res.json({ success: true, message: 'User deleted successfully.' });
 
-    await logUserActivity(decoded.userId, decoded.username, `Deleted User ${userId}`);
+    await logUserActivity(adminUser._id, adminUser.username, `Admin Deleted User ${userId}`);
   } catch (err) {
     console.error('Error deleting user:', err);
     res.status(500).json({ success: false, message: 'Error deleting user.', error: err.message });
